@@ -1,85 +1,68 @@
-import { useMemo, useState, type ReactNode } from 'react'
-import {
-  Bell, Bookmark, BriefcaseBusiness, ChevronDown, Command,
-  FileText, Home, MoreHorizontal, Search, Settings, Sparkles, Target, TrendingUp,
-} from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { Bell, Bookmark, BriefcaseBusiness, ChevronDown, Command, FileText, Home, MoreHorizontal, Search, Settings, Sparkles, Target, TrendingUp, X, type LucideIcon } from 'lucide-react'
+import { candidate, jobs } from './data/jobs'
+import { useLocalStorage } from './hooks/useLocalStorage'
+import type { ApplicationStatus, Job } from './types'
 
-type Job = { company: string; role: string; place: string; salary: string; match: number; kind: string; logo: string; tone: string; posted: string; skills: string[] }
-
-const jobs: Job[] = [
-  { company: 'Shopify', role: 'Software Engineering Intern', place: 'Toronto, ON · Hybrid', salary: '$28–36/hr', match: 96, kind: 'Internship', logo: 'S', tone: 'shopify', posted: '12m ago', skills: ['React', 'TypeScript', 'Node.js'] },
-  { company: 'Cohere', role: 'Machine Learning Intern', place: 'Toronto, ON · Remote', salary: '$35–42/hr', match: 92, kind: 'Internship', logo: 'C', tone: 'cohere', posted: '24m ago', skills: ['Python', 'PyTorch', 'LLMs'] },
-  { company: 'RBC', role: 'Data Analyst Co-op', place: 'Toronto, ON · Hybrid', salary: '$25–31/hr', match: 88, kind: 'Co-op', logo: 'R', tone: 'rbc', posted: '38m ago', skills: ['SQL', 'Python', 'Tableau'] },
-  { company: 'Waabi', role: 'Frontend Developer Intern', place: 'Toronto, ON · On-site', salary: '$27–34/hr', match: 84, kind: 'Internship', logo: 'W', tone: 'waabi', posted: '1h ago', skills: ['React', 'Figma', 'Next.js'] },
-]
-
-const nav = [
-  [Home, 'Overview'], [Search, 'Discover'], [FileText, 'My resume'], [BriefcaseBusiness, 'Applications'], [TrendingUp, 'Insights'],
-]
+type Page = 'Overview' | 'Discover' | 'My resume' | 'Applications' | 'Insights'
+const navigation: Array<[LucideIcon, Page]> = [[Home, 'Overview'], [Search, 'Discover'], [FileText, 'My resume'], [BriefcaseBusiness, 'Applications'], [TrendingUp, 'Insights']]
 
 export default function App() {
-  const [active, setActive] = useState('Overview')
+  const [page, setPage] = useState<Page>('Overview')
   const [query, setQuery] = useState('')
-  const [saved, setSaved] = useState<string[]>([])
-  const [showAll, setShowAll] = useState(false)
-  const [notice, setNotice] = useState('')
-  const filtered = useMemo(() => jobs.filter(j => `${j.company} ${j.role} ${j.skills.join(' ')}`.toLowerCase().includes(query.toLowerCase())), [query])
-  const shown = showAll ? filtered : filtered.slice(0, 3)
-  const toggleSaved = (role: string) => setSaved(current => current.includes(role) ? current.filter(x => x !== role) : [...current, role])
-  const refresh = () => { setNotice('Fresh matches are on the way'); window.setTimeout(() => setNotice(''), 2400) }
+  const [savedIds, setSavedIds] = useLocalStorage<string[]>('careerpilot:saved-jobs', ['rbc-data'])
+  const [applications, setApplications] = useLocalStorage<Record<string, ApplicationStatus>>('careerpilot:applications', { 'shopify-se': 'Applied', 'cohere-ml': 'Interviewing', 'waabi-fe': 'Offer' })
+  const [toast, setToast] = useState<string | null>(null)
+  const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(null), 2600) }
+  const toggleSaved = (id: string) => setSavedIds(items => items.includes(id) ? items.filter(item => item !== id) : [...items, id])
+  const setStatus = (id: string, status: ApplicationStatus) => { setApplications(current => ({ ...current, [id]: status })); notify(`Moved to ${status.toLowerCase()}`) }
 
   return <main className="app-shell">
-    <aside className="sidebar">
-      <div className="brand"><span className="brand-mark"><span /></span><span>careerpilot</span></div>
-      <button className="workspace">Alex’s workspace <ChevronDown size={15} /></button>
-      <nav>
-        <p className="nav-label">WORKSPACE</p>
-        {nav.map(([Icon, label]) => <button key={label as string} className={`nav-item ${active === label ? 'active' : ''}`} onClick={() => setActive(label as string)}><Icon size={18} />{label as string}{label === 'Applications' && <b>3</b>}</button>)}
-        <p className="nav-label second">LIBRARY</p>
-        <button className="nav-item"><Bookmark size={18} />Saved jobs</button>
-        <button className="nav-item"><Target size={18} />Skill gap</button>
-      </nav>
-      <div className="sidebar-bottom">
-        <button className="upgrade"><Sparkles size={17} /><span><strong>Unlock your edge</strong><small>Go Pro for AI tailoring</small></span></button>
-        <button className="nav-item"><Settings size={18} />Settings</button>
-        <div className="profile"><div className="avatar">AK</div><div><strong>Alex Kim</strong><small>alex@university.ca</small></div><MoreHorizontal size={18} /></div>
-      </div>
-    </aside>
-
+    <Sidebar page={page} setPage={setPage} savedCount={savedIds.length} />
     <section className="content">
-      <header className="topbar">
-        <div className="command-search"><Search size={18} /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search your next opportunity…" /><kbd><Command size={12} /> K</kbd></div>
-        <div className="header-actions"><button className="icon-button" aria-label="Notifications"><Bell size={19} /><i /></button><button className="help">?</button><div className="avatar top-avatar">AK</div></div>
-      </header>
-
+      <Topbar query={query} setQuery={setQuery} />
       <div className="page">
-        <section className="welcome"><div><p className="eyebrow">MONDAY, FEBRUARY 24</p><h1>Good morning, Alex <span>✦</span></h1><p className="subtitle">Your career is moving forward. Here’s what’s new today.</p></div><button className="refresh" onClick={refresh}><Sparkles size={17} /> Refresh matches</button></section>
-        {notice && <div className="toast"><Sparkles size={16} />{notice}</div>}
-
-        <section className="stats-grid">
-          <Stat icon={<Target size={20} />} label="MATCHES FOR YOU" value="128" trend="↑ 24 this week" color="lavender" />
-          <Stat icon={<Bookmark size={20} />} label="SAVED JOBS" value={String(saved.length || 7)} trend="2 need your attention" color="peach" />
-          <Stat icon={<FileText size={20} />} label="APPLICATIONS" value="12" trend="3 in progress" color="mint" />
-          <Stat icon={<TrendingUp size={20} />} label="PROFILE STRENGTH" value="82%" trend="↑ 6% this month" color="blue" />
-        </section>
-
-        <section className="dashboard-grid">
-          <div className="panel recommendations">
-            <div className="panel-head"><div><h2>Picked for you <span className="count">{filtered.length}</span></h2><p>Fresh opportunities matched to your profile</p></div><button className="text-button" onClick={() => setShowAll(!showAll)}>{showAll ? 'Show less' : 'View all'} <span>→</span></button></div>
-            <div className="job-list">{shown.map(job => <JobCard key={job.role} job={job} saved={saved.includes(job.role)} onSave={() => toggleSaved(job.role)} />)}{shown.length === 0 && <div className="empty">No roles match that search. Try a skill or company name.</div>}</div>
-          </div>
-          <div className="right-column">
-            <div className="panel profile-card"><div className="panel-head"><div><h2>Profile momentum</h2><p>Your profile is looking strong</p></div><button className="icon-button"><MoreHorizontal size={19} /></button></div><div className="momentum"><div className="progress-ring"><strong>82</strong><small>/100</small></div><div><strong>Almost there!</strong><p>Add 2 projects to reach a standout profile.</p><button className="outline">Improve profile <span>→</span></button></div></div><div className="meter"><span style={{ width: '82%' }} /></div><div className="profile-labels"><span>Basics</span><span>Experience</span><span>Skills</span><span>Projects</span></div></div>
-            <div className="panel activity"><div className="panel-head"><div><h2>Application activity</h2><p>Your progress this month</p></div><button className="text-button">Details <span>→</span></button></div><div className="activity-content"><div className="bars">{[42, 74, 55, 92, 70, 100, 64].map((h, i) => <span key={i} className={i === 5 ? 'hot' : ''} style={{ height: `${h}%` }} />)}</div><div className="chart-legend"><div><b>12</b><small>Applications</small></div><div><b>4</b><small>Interviews</small></div><div><b>33%</b><small>Response rate</small></div></div></div></div>
-          </div>
-        </section>
-
-        <section className="bottom-grid"><div className="panel pipeline"><div className="panel-head"><div><h2>Your pipeline</h2><p>Keep the momentum going</p></div><button className="text-button">Open board <span>→</span></button></div><div className="pipeline-row"><Stage n="4" label="Saved" cls="slate" /><Stage n="3" label="Applied" cls="purple" /><Stage n="2" label="Interviewing" cls="orange" /><Stage n="1" label="Offers" cls="green" /></div></div><div className="panel coach"><div className="coach-icon"><Sparkles size={20} /></div><div><p className="eyebrow">CAREER COPILOT</p><h2>Ready for your next move?</h2><p>Ask anything—from a resume review to interview prep.</p></div><button onClick={() => setNotice('Career Copilot is ready to help')}>Ask Copilot <span>→</span></button></div></section>
+        {toast && <div className="toast" role="status"><Sparkles size={16} />{toast}<button onClick={() => setToast(null)}><X size={14} /></button></div>}
+        {page === 'Overview' && <Overview query={query} savedIds={savedIds} applications={applications} toggleSaved={toggleSaved} setStatus={setStatus} notify={notify} />}
+        {page === 'Discover' && <Discover query={query} savedIds={savedIds} toggleSaved={toggleSaved} setStatus={setStatus} />}
+        {page === 'Applications' && <Applications applications={applications} setStatus={setStatus} />}
+        {page === 'My resume' && <Resume />}
+        {page === 'Insights' && <Insights />}
       </div>
     </section>
   </main>
 }
 
+function Sidebar({ page, setPage, savedCount }: { page: Page; setPage: (page: Page) => void; savedCount: number }) {
+  return <aside className="sidebar"><div className="brand"><span className="brand-mark"><span /></span><span>careerpilot</span></div><button className="workspace">Alex’s workspace <ChevronDown size={15} /></button><nav><p className="nav-label">WORKSPACE</p>{navigation.map(([Icon, label]) => <button key={label} className={`nav-item ${page === label ? 'active' : ''}`} onClick={() => setPage(label)}><Icon size={18} />{label}{label === 'Applications' && <b>3</b>}</button>)}<p className="nav-label second">LIBRARY</p><button className="nav-item"><Bookmark size={18} />Saved jobs <b>{savedCount}</b></button><button className="nav-item"><Target size={18} />Skill gap</button></nav><div className="sidebar-bottom"><button className="upgrade"><Sparkles size={17} /><span><strong>Unlock your edge</strong><small>Go Pro for AI tailoring</small></span></button><button className="nav-item"><Settings size={18} />Settings</button><div className="profile"><Avatar /><div><strong>{candidate.name}</strong><small>{candidate.email}</small></div><MoreHorizontal size={18} /></div></div></aside>
+}
+
+function Topbar({ query, setQuery }: { query: string; setQuery: (query: string) => void }) { return <header className="topbar"><label className="command-search"><Search size={18} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search roles, skills, or companies…" aria-label="Search jobs" /><kbd><Command size={12} /> K</kbd></label><div className="header-actions"><button className="icon-button" aria-label="Notifications"><Bell size={19} /><i /></button><button className="help" aria-label="Help">?</button><Avatar extra="top-avatar" /></div></header> }
+function Avatar({ extra = '' }: { extra?: string }) { return <div className={`avatar ${extra}`}>AK</div> }
+
+function Overview({ query, savedIds, applications, toggleSaved, setStatus, notify }: DashboardProps) {
+  const matches = filterJobs(query).slice(0, 3)
+  const applied = Object.keys(applications).length
+  return <><section className="welcome"><div><p className="eyebrow">MONDAY, FEBRUARY 24</p><h1>Good morning, Alex <span>✦</span></h1><p className="subtitle">Your career is moving forward. Here’s what’s new today.</p></div><button className="refresh" onClick={() => notify('42 fresh roles found — your feed is up to date.')}><Sparkles size={17} /> Refresh matches</button></section><section className="stats-grid"><Stat icon={<Target size={20} />} label="MATCHES FOR YOU" value="128" trend="↑ 24 this week" color="lavender" /><Stat icon={<Bookmark size={20} />} label="SAVED JOBS" value={String(savedIds.length)} trend="2 need your attention" color="peach" /><Stat icon={<FileText size={20} />} label="APPLICATIONS" value={String(applied)} trend="3 in progress" color="mint" /><Stat icon={<TrendingUp size={20} />} label="PROFILE STRENGTH" value="82%" trend="↑ 6% this month" color="blue" /></section><section className="dashboard-grid"><div className="panel recommendations"><PanelHeading title="Picked for you" subtitle="Fresh opportunities matched to your profile" action="View all" /><div className="job-list">{matches.map(job => <JobCard key={job.id} job={job} saved={savedIds.includes(job.id)} onSave={() => toggleSaved(job.id)} onApply={() => setStatus(job.id, 'Applied')} />)}{matches.length === 0 && <EmptyState />}</div></div><div className="right-column"><ProfileMomentum /><Activity /></div></section><section className="bottom-grid"><Pipeline applications={applications} /><CareerCoach /></section></>
+}
+
+function Discover({ query, savedIds, toggleSaved, setStatus }: Pick<DashboardProps, 'query' | 'savedIds' | 'toggleSaved' | 'setStatus'>) {
+  const [mode, setMode] = useState<'All' | 'Remote' | 'Hybrid' | 'Internship'>('All')
+  const matches = filterJobs(query).filter(job => mode === 'All' || mode === 'Internship' ? (mode === 'All' || job.type === mode) : job.workMode === mode)
+  return <><section className="discover-hero"><div><p className="eyebrow">AI JOB DISCOVERY</p><h1>Find work that fits <span>you.</span></h1><p className="subtitle">Live opportunities, ranked against your resume and preferences.</p></div><div className="live-pill"><span /> Sources live · Updated just now</div></section><div className="filter-row">{(['All', 'Remote', 'Hybrid', 'Internship'] as const).map(item => <button key={item} onClick={() => setMode(item)} className={mode === item ? 'selected' : ''}>{item}</button>)}<button className="filter-more">+ More filters</button></div><section className="discovery-layout"><div className="panel job-results"><PanelHeading title={`${matches.length} opportunities`} subtitle="Sorted by your AI match score" /><div className="job-list">{matches.map(job => <JobCard key={job.id} job={job} saved={savedIds.includes(job.id)} onSave={() => toggleSaved(job.id)} onApply={() => setStatus(job.id, 'Applied')} detailed />)}{matches.length === 0 && <EmptyState />}</div></div><aside className="panel insight-card"><p className="eyebrow">MATCH INTELLIGENCE</p><h2>What makes a great match?</h2><p>Your strongest opportunities combine React, TypeScript, and product-minded problem solving.</p><div className="skill-cloud">{candidate.skills.map(skill => <span key={skill}>{skill}</span>)}</div><button className="outline">Review skill gap <span>→</span></button></aside></section></>
+}
+
+function Applications({ applications, setStatus }: { applications: Record<string, ApplicationStatus>; setStatus: (id: string, status: ApplicationStatus) => void }) { const stages: ApplicationStatus[] = ['Saved', 'Applied', 'Interviewing', 'Offer']; return <><section className="discover-hero"><div><p className="eyebrow">APPLICATION TRACKER</p><h1>Every next step, <span>clear.</span></h1><p className="subtitle">Keep your search organized and never miss a follow-up.</p></div></section><section className="kanban">{stages.map(stage => <div className="kanban-column" key={stage}><div className="kanban-header"><h2>{stage}</h2><span>{Object.values(applications).filter(value => value === stage).length}</span></div>{jobs.filter(job => applications[job.id] === stage).map(job => <article className="kanban-card" key={job.id}><div className={`company-logo ${job.tone}`}>{job.logo}</div><strong>{job.role}</strong><p>{job.company}</p><select value={stage} onChange={event => setStatus(job.id, event.target.value as ApplicationStatus)} aria-label={`Move ${job.role}`}><option>Saved</option><option>Applied</option><option>Interviewing</option><option>Offer</option></select></article>)}{!Object.values(applications).includes(stage) && <p className="empty-column">No roles here yet</p>}</div>)}</section></> }
+function Resume() { return <><section className="discover-hero"><div><p className="eyebrow">RESUME INTELLIGENCE</p><h1>Your experience, <span>amplified.</span></h1><p className="subtitle">CareerPilot turns your resume into clear next actions.</p></div><button className="refresh"><FileText size={17} /> Upload version</button></section><section className="resume-grid"><div className="panel resume-preview"><div className="resume-paper"><h2>Alex Kim</h2><p>Computer Science student · Toronto, ON</p><hr /><strong>Experience</strong><h3>Frontend Developer · Campus Tech Lab</h3><p>Built accessible digital products used by 4,000+ students.</p><strong>Skills</strong><div className="skill-cloud">{candidate.skills.map(skill => <span key={skill}>{skill}</span>)}</div></div></div><div className="panel analysis"><p className="eyebrow">AI ANALYSIS</p><div className="score"><b>82</b><span>Resume score<br /><small>Strong foundation</small></span></div><h2>Strengths</h2><ul><li>Clear, measurable project impact</li><li>Relevant modern frontend stack</li><li>Strong academic alignment</li></ul><h2>Best next improvement</h2><p>Add one project demonstrating backend ownership to increase co-op matches.</p><button className="refresh">Tailor for a role <span>→</span></button></div></section></> }
+function Insights() { return <><section className="discover-hero"><div><p className="eyebrow">CAREER INSIGHTS</p><h1>Make your progress <span>visible.</span></h1><p className="subtitle">See where you are, and focus energy where it matters.</p></div></section><section className="insight-grid"><div className="panel"><PanelHeading title="Match score trend" subtitle="Your average match is improving" /><div className="trend-chart">{[33, 45, 38, 57, 65, 61, 82].map((value, index) => <span key={index} style={{ height: `${value}%` }} />)}</div><div className="chart-footer"><span>Feb 1</span><strong>+14% this month</strong><span>Today</span></div></div><div className="panel"><PanelHeading title="Skills in demand" subtitle="Across your matched jobs" /><div className="demand-list">{['TypeScript', 'React', 'SQL', 'Python'].map((skill, index) => <div key={skill}><span>{skill}</span><i><b style={{ width: `${92 - index * 13}%` }} /></i><small>{92 - index * 13}%</small></div>)}</div></div></section></> }
+
+type DashboardProps = { query: string; savedIds: string[]; applications: Record<string, ApplicationStatus>; toggleSaved: (id: string) => void; setStatus: (id: string, status: ApplicationStatus) => void; notify: (message: string) => void }
+const filterJobs = (query: string) => jobs.filter(job => `${job.company} ${job.role} ${job.skills.join(' ')}`.toLowerCase().includes(query.toLowerCase()))
+function PanelHeading({ title, subtitle, action }: { title: string; subtitle: string; action?: string }) { return <div className="panel-head"><div><h2>{title}</h2><p>{subtitle}</p></div>{action && <button className="text-button">{action} <span>→</span></button>}</div> }
 function Stat({ icon, label, value, trend, color }: { icon: ReactNode; label: string; value: string; trend: string; color: string }) { return <div className="stat-card"><div className={`stat-icon ${color}`}>{icon}</div><div><p>{label}</p><h3>{value}</h3><small>{trend}</small></div></div> }
-function Stage({ n, label, cls }: { n: string; label: string; cls: string }) { return <div className="stage"><b className={cls}>{n}</b><span>{label}</span></div> }
-function JobCard({ job, saved, onSave }: { job: Job; saved: boolean; onSave: () => void }) { return <article className="job-card"><div className={`company-logo ${job.tone}`}>{job.logo}</div><div className="job-main"><div className="job-title"><h3>{job.role}</h3><span className="match"><Sparkles size={12} /> {job.match}% match</span></div><p>{job.company} <i>•</i> {job.place}</p><div className="pills"><span>{job.kind}</span><span>{job.salary}</span><span>{job.posted}</span></div></div><div className="job-actions"><button onClick={onSave} aria-label="Save job" className={saved ? 'saved' : ''}><Bookmark size={18} fill={saved ? 'currentColor' : 'none'} /></button><button className="apply">View job <span>↗</span></button></div></article> }
+function JobCard({ job, saved, onSave, onApply, detailed = false }: { job: Job; saved: boolean; onSave: () => void; onApply: () => void; detailed?: boolean }) { return <article className={`job-card ${detailed ? 'detailed' : ''}`}><div className={`company-logo ${job.tone}`}>{job.logo}</div><div className="job-main"><div className="job-title"><h3>{job.role}</h3><span className="match"><Sparkles size={12} /> {job.matchScore}% match</span></div><p>{job.company} <i>•</i> {job.location} <i>•</i> {job.workMode}</p>{detailed && <p className="job-description">{job.description}</p>}<div className="pills"><span>{job.type}</span><span>{job.salary}</span>{job.visaSupport && <span className="visa">Visa support</span>}<span>{job.postedAt}</span></div></div><div className="job-actions"><button onClick={onSave} aria-label={`Save ${job.role}`} className={saved ? 'saved' : ''}><Bookmark size={18} fill={saved ? 'currentColor' : 'none'} /></button><button className="apply" onClick={onApply}>Apply <span>↗</span></button></div></article> }
+function EmptyState() { return <div className="empty"><Search size={22} /><strong>No opportunities found</strong><span>Try another title, company, or skill.</span></div> }
+function ProfileMomentum() { return <div className="panel profile-card"><PanelHeading title="Profile momentum" subtitle="Your profile is looking strong" /><div className="momentum"><div className="progress-ring"><strong>82</strong><small>/100</small></div><div><strong>Almost there!</strong><p>Add 2 projects to reach a standout profile.</p><button className="outline">Improve profile <span>→</span></button></div></div><div className="meter"><span style={{ width: '82%' }} /></div><div className="profile-labels"><span>Basics</span><span>Experience</span><span>Skills</span><span>Projects</span></div></div> }
+function Activity() { return <div className="panel activity"><PanelHeading title="Application activity" subtitle="Your progress this month" action="Details" /><div className="activity-content"><div className="bars">{[42, 74, 55, 92, 70, 100, 64].map((height, index) => <span key={index} className={index === 5 ? 'hot' : ''} style={{ height: `${height}%` }} />)}</div><div className="chart-legend"><div><b>12</b><small>Applications</small></div><div><b>4</b><small>Interviews</small></div><div><b>33%</b><small>Response rate</small></div></div></div></div> }
+function Pipeline({ applications }: { applications: Record<string, ApplicationStatus> }) { const stages: ApplicationStatus[] = ['Saved', 'Applied', 'Interviewing', 'Offer']; return <div className="panel pipeline"><PanelHeading title="Your pipeline" subtitle="Keep the momentum going" action="Open board" /><div className="pipeline-row">{stages.map((stage, index) => <div className="stage" key={stage}><b className={['slate', 'purple', 'orange', 'green'][index]}>{Object.values(applications).filter(item => item === stage).length}</b><span>{stage}</span></div>)}</div></div> }
+function CareerCoach() { return <div className="panel coach"><div className="coach-icon"><Sparkles size={20} /></div><div><p className="eyebrow">CAREER COPILOT</p><h2>Ready for your next move?</h2><p>Ask anything—from a resume review to interview prep.</p></div><button>Ask Copilot <span>→</span></button></div> }
